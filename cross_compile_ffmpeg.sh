@@ -648,16 +648,16 @@ do_ninja_and_ninja_install() {
 }
 
 do_ninja() {
-  local extra_make_options=" -j $cpu_count"
+  local extra_make_options="-j $cpu_count"
   local cur_dir2=$(pwd)
   local touch_name=$(get_small_touchfile_name already_ran_make "${extra_make_options}")
 
-  if [ ! -f $touch_name ]; then
+  if [ ! -f "$touch_name" ]; then
     echo
-    echo "ninja-ing $cur_dir2 as $ PATH=$PATH ninja -C build "${extra_make_options}"
+    echo "ninja-ing $cur_dir2 as PATH=$PATH ninja -C build ${extra_make_options}"
     echo
-    ninja -C build "${extra_make_options} || exit 1
-    touch $touch_name || exit 1 # only touch if the build was OK
+    ninja -C build ${extra_make_options} || exit 1
+    touch "$touch_name" || exit 1
   else
     echo "already did ninja $(basename "$cur_dir2")"
   fi
@@ -1493,8 +1493,9 @@ build_facebooktransform360() {
 
 build_libbluray() {
   unset JDK_HOME # #268 was causing failure
-  do_git_checkout https://code.videolan.org/videolan/libbluray.git
-  cd libbluray_git
+  # do_git_checkout https://code.videolan.org/videolan/libbluray.git
+  download_and_unpack_file https://download.videolan.org/pub/videolan/libbluray/1.3.4/libbluray-1.3.4.tar.bz2
+  cd libbluray-1.3.4
     if [[ ! -d .git/modules ]]; then
       git submodule update --init --remote # For UDF support [default=enabled], which strangely enough is in another repository.
     else
@@ -1517,7 +1518,8 @@ build_libbluray() {
         sed -i.bak "/WIN32$/,+4d" src/udfread.c # Fix WinXP incompatibility.
       fi
       if [[ ! -f src/udfread-version.h ]]; then
-        generic_configure # Generate 'udfread-version.h', or building Libbluray fails otherwise.
+      # generic_configure # Generate 'udfread-version.h', or building Libbluray fails otherwise.
+      meson setup builddir --prefix=$mingw_w64_x86_64_prefix --buildtype=release
       fi
     cd ../..
     generic_configure "--disable-examples --disable-bdjava-jar"
@@ -1547,7 +1549,8 @@ build_libflite() {
   # download_and_unpack_file http://www.festvox.org/flite/packed/flite-2.1/flite-2.1-release.tar.bz2
   # original link is not working so using a substitute
   # from a trusted source
-  download_and_unpack_file http://deb.debian.org/debian/pool/main/f/flite/flite_2.1-release.orig.tar.bz2 flite-2.1-release
+  # download_and_unpack_file http://deb.debian.org/debian/pool/main/f/flite/flite_2.1-release.orig.tar.bz2 flite-2.1-release
+  download_and_unpack_file https://old-releases.ubuntu.com/ubuntu/pool/universe/f/flite/flite_2.1-release.orig.tar.bz2 flite-2.1-release
   cd flite-2.1-release
     apply_patch file://$patch_dir/flite-2.1.0_mingw-w64-fixes.patch
     if [[ ! -f main/Makefile.bak ]]; then
@@ -1567,8 +1570,12 @@ build_libsnappy() {
 }
 
 build_vamp_plugin() {
-  download_and_unpack_file https://code.soundsoftware.ac.uk/attachments/download/2691/vamp-plugin-sdk-2.10.0.tar.gz
-  cd vamp-plugin-sdk-2.10.0
+  curl -L -o vamp-plugin-sdk-v2.10.tar.gz https://github.com/vamp-plugins/vamp-plugin-sdk/archive/refs/tags/vamp-plugin-sdk-v2.10.tar.gz
+  tar xf vamp-plugin-sdk-v2.10.tar.gz
+  rm -f vamp-plugin-sdk-v2.10.tar.gz
+  mv vamp-plugin-sdk-vamp-plugin-sdk-v2.10 vamp-plugin-sdk-v2.10
+  touch vamp-plugin-sdk-v2.10/unpacked.successfully
+  cd vamp-plugin-sdk-v2.10
     apply_patch file://$patch_dir/vamp-plugin-sdk-2.10_static-lib.diff
     if [[ $compiler_flavors != "native" && ! -f src/vamp-sdk/PluginAdapter.cpp.bak ]]; then
       sed -i.bak "s/#include <mutex>/#include <mingw.mutex.h>/" src/vamp-sdk/PluginAdapter.cpp
@@ -1702,15 +1709,17 @@ build_libcaca() {
 }
 
 build_libdecklink() {
-  local url=https://notabug.org/RiCON/decklink-headers.git
-  git ls-remote $url
-  if [ $? -ne 0 ]; then
+  # local url=https://notabug.org/RiCON/decklink-headers.git
+  # git ls-remote $url
+  # if [ $? -ne 0 ]; then
     # If NotABug.org server is down , Change to use GitLab.com .
     # https://gitlab.com/m-ab-s/decklink-headers
     url=https://gitlab.com/m-ab-s/decklink-headers.git
-  fi
-  do_git_checkout $url
+  # fi
+  # do_git_checkout $url
+  git clone https://github.com/nanake/decklink-headers.git decklink-headers_git
   cd decklink-headers_git
+  git checkout -b SDK-12.9 origin/SDK/12.9
     do_make_install PREFIX=$mingw_w64_x86_64_prefix
   cd ..
 }
